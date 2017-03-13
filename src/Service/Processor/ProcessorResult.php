@@ -6,6 +6,8 @@ namespace MongoSQL\Service\Processor;
 class ProcessorResult
 {
     const ALLOWED_TYPES = ['string', 'table'];
+    const TYPE_STRING = 'string';
+    CONST TYPE_TABLE = 'table';
 
     /** @var  string */
     private $type;

@@ -18,18 +18,18 @@ class ShowProcessor extends AbstractProcessor
         $expr = mb_strtoupper($parsed[static::KEYWORD_SHOW][0]['base_expr']);
         if ($expr == static::KEYWORD_DATABASES) {
             $result = $this->listDatabases();
-            return new ProcessorResult('string', $result);
+            return new ProcessorResult(ProcessorResult::TYPE_STRING, $result);
         }
 
         if ($expr == static::KEYWORD_TABLES) {
             if (!$this->isDatabaseSelected()) {
-                return new ProcessorResult('string', 'Use DB first');
+                return new ProcessorResult(ProcessorResult::TYPE_STRING, 'Use DB first');
             }
 
             $result = $this->listCollections();
-            return new ProcessorResult('string', $result);
+            return new ProcessorResult(ProcessorResult::TYPE_STRING, $result);
         }
 
-        return new ProcessorResult('string', 'Unknown query');
+        return new ProcessorResult(ProcessorResult::TYPE_STRING, 'Unknown query');
     }
 }

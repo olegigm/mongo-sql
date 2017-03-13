@@ -33,14 +33,10 @@ class QueryHandler
     }
 
     /**
-     * @param Database $database
+     * @param string $sql
+     * @return ProcessorResult|string
+     * @throws UnknownProcessorException
      */
-    public function setDatabase(Database $database)
-    {
-        $this->database = $database;
-    }
-
-
     public function handle(string $sql)
     {
         $parsed = $this->parser->parse($sql);
@@ -53,12 +49,12 @@ class QueryHandler
                 $result = $processor->execute($parsed);
                 break;
             case static::KEYWORD_USE :
-                $dbName = $parsed[QueryHandler::KEYWORD_USE][1];
+                $dbName = $parsed[static::KEYWORD_USE][1];
 
                 if ($this->selectDatabase($dbName)) {
-                    $result = new ProcessorResult('string', 'The DB ' . $dbName . ' has been selected');
+                    $result = new ProcessorResult(ProcessorResult::TYPE_STRING, 'The DB ' . $dbName . ' has been selected');
                 } else {
-                    $result = new ProcessorResult('string', 'The DB ' . $dbName . ' is not exists on this server');
+                    $result = new ProcessorResult(ProcessorResult::TYPE_STRING, 'The DB ' . $dbName . ' is not exists on this server');
                 }
                 break;
             case static::KEYWORD_SELECT :
