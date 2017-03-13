@@ -13,5 +13,8 @@
         "psr-4": {
             "MongoSQL\\": "src/"
         }
+    },
+    "autoload-dev": {
+        "psr-4": { "MongoSQL\\Tests\\": "tests/" }
     }
 }
