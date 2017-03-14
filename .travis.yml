@@ -9,10 +9,5 @@ env:
 services:
   - mongodb
 
-before_script:
-    - php -i | grep mongo
-
 script:
-    - "wget http://codeception.com/codecept.phar"
-    - php ./codecept.phar build
-    - php ./codecept.phar run unit
+    - php -i | grep mongo
