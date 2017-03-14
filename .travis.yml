@@ -11,9 +11,6 @@ services:
 
 before_script:
     - php -i | grep mongo
-    - composer self-update
-    - composer require jenssegers/mongodb --ignore-platform-reqs
-    - composer install
 
 script:
     - "wget http://codeception.com/codecept.phar"
