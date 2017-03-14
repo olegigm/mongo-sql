@@ -11,8 +11,8 @@ services:
 
 before_script:
     - composer self-update
-    - composer install
     - composer require jenssegers/mongodb --ignore-platform-reqs
+    - composer install
 
 script:
     - "wget http://codeception.com/codecept.phar"
