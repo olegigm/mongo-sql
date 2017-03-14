@@ -22,4 +22,5 @@ phpunit.phar
 # Vagrant
 /.vagrant
 
+# tests
 tests/_output/*
