@@ -48,17 +48,6 @@ class QueryHandlerCest
         $result = $this->queryHandler->handle($sql);
         $I->assertTrue($result instanceof ProcessorResult);
         $I->assertEquals($result->getType(), ProcessorResult::TYPE_STRING);
-        $I->assertEquals($result->getStrData(), 'The DB ' . $databaseName . ' has been selected');
-    }
-
-    public function testNotUseDB(UnitTester $I)
-    {
-        $I->wantToTest('that no-existing database is not selected');
-        $databaseName = $I->getConfig('database_name') . time();
-        $sql = 'use ' . $databaseName;
-        $result = $this->queryHandler->handle($sql);
-        $I->assertTrue($result instanceof ProcessorResult);
-        $I->assertEquals($result->getType(), ProcessorResult::TYPE_STRING);
-        $I->assertEquals($result->getStrData(), 'The DB ' . $databaseName . ' is not exists on this server');
+        $I->assertEquals($result->getStrData(), sprintf('Switched to db %s', $databaseName));
     }
 }

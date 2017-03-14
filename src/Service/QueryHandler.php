@@ -2,6 +2,7 @@
 
 namespace MongoSQL\Service;
 
+use MongoDB\Exception\InvalidArgumentException;
 use PHPSQLParser\PHPSQLParser;
 use MongoDB\Client;
 use MongoDB\Database;
@@ -50,11 +51,17 @@ class QueryHandler
                 break;
             case static::KEYWORD_USE :
                 $dbName = $parsed[static::KEYWORD_USE][1];
-
-                if ($this->selectDatabase($dbName)) {
-                    $result = new ProcessorResult(ProcessorResult::TYPE_STRING, 'The DB ' . $dbName . ' has been selected');
-                } else {
-                    $result = new ProcessorResult(ProcessorResult::TYPE_STRING, 'The DB ' . $dbName . ' is not exists on this server');
+                try {
+                    $this->selectDatabase($dbName);
+                    $result = new ProcessorResult(
+                        ProcessorResult::TYPE_STRING,
+                        sprintf('Switched to db %s', $dbName)
+                    );
+                } catch (InvalidArgumentException $exception) {
+                    $result = new ProcessorResult(
+                        ProcessorResult::TYPE_STRING,
+                        sprintf('Error switching to db %s : %s ', $dbName, $exception->getMessage())
+                    );
                 }
                 break;
             case static::KEYWORD_SELECT :
@@ -71,17 +78,14 @@ class QueryHandler
 
     /**
      * @param string $dbName
-     * @return bool
+     * @return Database
+     * @throws InvalidArgumentException for parameter/option parsing errors
      */
     private function selectDatabase(string $dbName)
     {
-        if ($this->inListDatabases($dbName)) {
-            $this->database = $this->client->selectDatabase($dbName);
+        $this->database = $this->client->selectDatabase($dbName);
 
-            return true;
-        }
-
-        return false;
+        return $this->database;
     }
 
     /**
