@@ -10,6 +10,7 @@ services:
   - mongodb
 
 before_script:
+    - php -i | grep php.ini
     - composer self-update
     - composer require jenssegers/mongodb --ignore-platform-reqs
     - composer install
