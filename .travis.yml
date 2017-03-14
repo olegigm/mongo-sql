@@ -10,4 +10,4 @@ services:
   - mongodb
 
 script:
-    - php -i | grep mongo
+    - php -i | grep ini
