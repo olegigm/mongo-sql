@@ -1,0 +1,20 @@
+language: php
+
+php:
+  - '7.0'
+
+env:
+  - DB=mongodb
+
+services:
+  - mongodb
+
+before_script:
+    - pecl -q install mongodb && echo "extension=mongodb.so" >> `php --ini | grep "Loaded Configuration" | sed -e "s|.*:\s*||"`
+    - composer self-update
+    - composer install
+
+script:
+    - "wget http://codeception.com/codecept.phar"
+    - php ./codecept.phar build
+    - php ./codecept.phar run unit

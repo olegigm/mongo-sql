@@ -1,8 +1,6 @@
 # composer
 /vendor
 composer.phar
-## remove in production!
-composer.lock
 
 # IDE
 .idea
@@ -23,3 +21,6 @@ phpunit.phar
 
 # Vagrant
 /.vagrant
+
+# tests
+tests/_output/*
