@@ -10,4 +10,4 @@ modules:
         - \Helper\ConfigHelper
     config:
         \Helper\ConfigHelper:
-            database_name: test
+            database_name: test_test
