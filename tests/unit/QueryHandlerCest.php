@@ -5,6 +5,7 @@ use MongoSQL\Service\QueryHandler;
 use Symfony\Component\Config\FileLocator;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\Loader\PhpFileLoader;
+use MongoSQL\Tests\helpers\MongoFixtureHelper;
 
 class QueryHandlerCest
 {
@@ -20,6 +21,9 @@ class QueryHandlerCest
 
     public function _before(UnitTester $I)
     {
+        // load fixture
+        $I->haveMongoFixtures($I->getConfig('database_name'), MongoFixtureHelper::getAllFixtures());
+
         $container = new ContainerBuilder();
 
         $loader = new PhpFileLoader($container, new FileLocator(__DIR__ . '/../../config'));

@@ -8,6 +8,7 @@ modules:
         - Asserts
         - \Helper\Unit
         - \Helper\ConfigHelper
+        - \Helper\MyMongoHelper
     config:
         \Helper\ConfigHelper:
             database_name: test_test
