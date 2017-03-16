@@ -5,7 +5,6 @@ namespace MongoSQL\Service\Processor;
 
 class ProcessorResult
 {
-    const ALLOWED_TYPES = ['string', 'table'];
     const TYPE_STRING = 'string';
     CONST TYPE_TABLE = 'table';
 
@@ -31,6 +30,23 @@ class ProcessorResult
     public function getType(): string
     {
         return $this->type;
+    }
+
+    /**
+     * @return string|array|null
+     */
+    public function getData()
+    {
+        switch ($this->type) {
+            case static::TYPE_STRING :
+                $this->getStrData();
+                break;
+            case static::TYPE_TABLE :
+                $this->getTableData();
+                break;
+        }
+
+        return null;
     }
 
     /**
