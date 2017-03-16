@@ -10,6 +10,7 @@ services:
   - mongodb
 
 before_script:
+    - pecl channel-update pecl.php.net
     - pecl -q install mongodb && echo "extension=mongodb.so" >> `php --ini | grep "Loaded Configuration" | sed -e "s|.*:\s*||"`
     - composer self-update
     - composer install
