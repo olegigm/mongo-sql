@@ -6,7 +6,7 @@ namespace MongoSQL\Service\Processor;
 class ProcessorResult
 {
     const TYPE_STRING = 'string';
-    CONST TYPE_TABLE = 'table';
+    const TYPE_TABLE = 'table';
 
     /** @var  string */
     private $type;
@@ -39,10 +39,10 @@ class ProcessorResult
     {
         switch ($this->type) {
             case static::TYPE_STRING :
-                $this->getStrData();
+                return $this->getStrData();
                 break;
             case static::TYPE_TABLE :
-                $this->getTableData();
+                return $this->getTableData();
                 break;
         }
 

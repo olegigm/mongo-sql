@@ -26,7 +26,7 @@ class QueryHandlerCest
 
         $container = new ContainerBuilder();
 
-        $loader = new PhpFileLoader($container, new FileLocator(__DIR__ . '/../../config'));
+        $loader = new PhpFileLoader($container, new FileLocator(__DIR__ . '/../../../config'));
         $loader->load('services.php');
 
         $this->container = $container;
