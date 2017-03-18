@@ -28,16 +28,38 @@ class SelectProcessorCest
     }
 
     // tests
-    public function tryToTest(UnitTester $I)
-    {
-
-    }
-
     public function analyzeFilterTest(UnitTester $I)
     {
         $I->wantToTest('filter analyzer');
 
-        $filters = [
+        $filters = $this->getFiltersFilterPrepare();
+        $checkFilters = $this->getCheckFiltersFilterPrepare();
+
+        $analyzeFilter = $this->getMethod('filterPrepare');
+        $selectProcessor = new SelectProcessor(new Client(), $I->getConfig('database_name'));
+        $result = $analyzeFilter->invokeArgs($selectProcessor, [$filters]);
+
+        $I->assertEquals($checkFilters, $result);
+    }
+
+    // test
+    public function filterBuildTest(UnitTester $I)
+    {
+        $I->wantToTest('filter builder');
+
+        $filters = $this->getCheckFiltersFilterPrepare();
+        $checkFilters = $this->getCheckFiltersFilterBuild();
+
+        $analyzeFilter = $this->getMethod('filterBuild');
+        $selectProcessor = new SelectProcessor(new Client(), $I->getConfig('database_name'));
+        $result = $analyzeFilter->invokeArgs($selectProcessor, [$filters]);
+
+        $I->assertEquals($checkFilters, $result);
+    }
+
+    private function getFiltersFilterPrepare()
+    {
+        return [
             [
                 'condition' => [
                     ['expr_type' => 'colref', 'base_expr' => 'position'],
@@ -70,8 +92,11 @@ class SelectProcessorCest
                 ],
             ],
         ];
+    }
 
-        $checkFilters = [
+    private function getCheckFiltersFilterPrepare()
+    {
+        return [
             ['and' => [
                 [
                     [
@@ -102,11 +127,19 @@ class SelectProcessorCest
                 ],
             ]],
         ];
+    }
 
-        $analyzeFilter = $this->getMethod('analyzeFilter');
-        $selectProcessor = new SelectProcessor(new Client(), $I->getConfig('database_name'));
-        $result = $analyzeFilter->invokeArgs($selectProcessor, [$filters]);
-
-        $I->assertEquals($checkFilters, $result);
+    private function getCheckFiltersFilterBuild()
+    {
+        return ['$and' => [
+            ['position' => ['$lt' => 5]],
+            ['$or' => [
+                ['author' => ['$in' => [
+                            'Brit Bennett',
+                            'Adam Haslett',
+                ]]],
+                ['title' => 'The Regional Office Is Under Attack!'],
+            ]],
+        ]];
     }
 }

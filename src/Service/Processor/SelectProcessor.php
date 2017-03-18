@@ -3,7 +3,6 @@
 namespace MongoSQL\Service\Processor;
 
 
-
 class SelectProcessor extends AbstractProcessor
 {
     const KEYWORD_SELECT = 'SELECT';
@@ -26,13 +25,16 @@ class SelectProcessor extends AbstractProcessor
     private $options = [];
 
     private $operators = [
-        '=' => '=',
+        '=' => '',
         '<>' => '$ne',
         '!=' => '$ne',
         '>' => '$gt',
         '>=' => '$gte',
         '<' => '$lt',
         '<=' => '$lte',
+        'in' => '$in',
+        'and' => '$and',
+        'or' => '$or'
     ];
 
     public function execute(array $parsed): ProcessorResult
@@ -49,7 +51,7 @@ class SelectProcessor extends AbstractProcessor
         if (!$this->inListCollections($fromTable)) {
             return new ProcessorResult(
                 ProcessorResult::TYPE_STRING,
-                'Table ' . $fromTable . ' is not exists in ' . $this->database->getDatabaseName() . ' database'
+                sprintf('Table %s is not exists in %s database', $fromTable, $this->database->getDatabaseName())
             );
         }
 
@@ -88,7 +90,9 @@ class SelectProcessor extends AbstractProcessor
             ->toArray();
     }
 
-
+    /**
+     * @param array $select
+     */
     private function setOptionSelect(array $select)
     {
         $selectExpr = mb_strtoupper($select[0]['base_expr']);
@@ -98,52 +102,40 @@ class SelectProcessor extends AbstractProcessor
             foreach ($select as $expression) {
                 $this->options['projection'][$expression['base_expr']] = 1;
             }
-            if (!array_key_exists('id', $this->options)) {
+            if (!array_key_exists('id', $this->options['projection'])) {
                 $this->options['projection']['_id'] = 0;
             }
         }
     }
 
+    /**
+     * @param array $where
+     */
     private function setFilterWhere(array $where)
     {
-        $expressions = [];
-
-        $i = 0;
-        $expressions[$i]['type'] = '';
+        $filters = []; $i = 0;
         foreach ($where as $key => $expression) {
             if ($expression['expr_type'] == 'operator' && in_array($expression['base_expr'], ['and', 'or'])) {
+                $filters[$i]['type'] = $expression['base_expr'];
                 $i++;
-                $logicOperator = $expression['base_expr'];
-                $expressions[$i]['type'] = $logicOperator;
+                continue;
             }
 
-            $expressions[$i][$expression['expr_type']] = $expression['base_expr'];
+            $filters[$i]['condition'][] = [
+                'expr_type' => $expression['expr_type'],
+                'base_expr' => $this->clearBaseExpr($expression)
+            ];
         }
 
-        $first = [];
-        $filter = [];
-        foreach ($expressions as $expression) {
-            $operator = $this->operators[$expression['operator']];
-            if ($operator == '=') {
-                $row = [$expression['colref'] => $expression['const']];
-            } else {
-                $row = [$expression['colref'] => [$operator => $expression['const']]];
-            }
+        $filters = $this->filterPrepare($filters);
+        $filters = $this->filterBuild($filters);
 
-            if (empty($expression['type'])) {
-                $first = $row;
-            } else {
-                if (isset($first)) {
-                    $row = $first + $row;
-                    unset($first);
-                }
-
-                $filter[] = [$expression['type'] => $row];
-            }
-        }
-        $this->filter = $filter;
+        $this->filter = $filters;
     }
 
+    /**
+     * @param array $order
+     */
     private function setOptionOrder(array $order)
     {
         foreach ($order as $expression) {
@@ -155,6 +147,9 @@ class SelectProcessor extends AbstractProcessor
         }
     }
 
+    /**
+     * @param array $limit
+     */
     private function setOptionLimit(array $limit)
     {
         $offset = (int)$limit['offset'];
@@ -166,4 +161,185 @@ class SelectProcessor extends AbstractProcessor
             $this->options['skip'] = $offset;
         }
     }
+
+    /**
+     * Build filter
+     * @param array $filters
+     * @return array
+     */
+    private function filterBuild(array $filters) : array
+    {
+        $conditions = [];
+        $filter = $filters[0];
+
+        $typeKey = key($filter);
+        $type = $this->operators[$typeKey];
+        $items = [];
+        if ($typeKey == 'and') {
+            foreach ($filter[$typeKey] as $item) {
+                $left = $item[0]['base_expr'];
+                $signKey = $item[1]['base_expr'];
+                $sign = $this->operators[$signKey];
+                $right = $this->cast($item[2]['base_expr']);
+                if (empty($sign)) {
+                    $item = [$left => $right];
+                } else {
+                    $item = [$left => [$sign => $right]];
+                }
+                $items = $items + $item;
+            }
+
+            $conditions[$type][] = $items;
+
+        } elseif ($typeKey == 'or') {
+            foreach ($filter[$typeKey] as $key => $item) {
+                $left = $key;
+                $signKey = key($item);
+                $sign = $this->operators[$signKey];
+                $right = $this->cast($item[$signKey]);
+                if ($signKey == 'in') {
+                    $item = [$left => [$sign => $right]];
+                } else {
+                    if (is_array($right) && count($right) == 1) {
+                        $right = $right[0];
+                    }
+
+                    if (empty($sign)) {
+                        $item = [$left => $right];
+                    } else {
+                        $item = [$left => [$sign => $right]];
+                    }
+                }
+
+                $items[] = $item;
+            }
+
+            $conditions[$type] = $items;
+        }
+
+        array_shift($filters);
+        if (!empty($filters)) {
+            $conditions[$type][] = $this->filterBuild($filters);
+        }
+
+        return $conditions;
+    }
+
+    /**
+     * Prepare filter
+     * @param $filters
+     * @return array
+     */
+    private function filterPrepare($filters)
+    {
+        $conditions = [];
+        $prevFilter = null;
+
+        foreach ($filters as $filter) {
+            if (!isset($filter['type'])) {
+                $conditions[] = [$prevFilter['type'] => $filter];
+            } else {
+                $conditions[] = [$filter['type'] => $filter];
+            }
+            $prevFilter = $filter;
+        }
+
+        $filters = [];
+        $prevFilter = null;
+        $key = -1;
+        foreach ($conditions as $filter) {
+            $type = key($filter);
+            if (!isset($prevType) || $prevType != $type) {
+                $key++;
+            }
+
+            $filters[$key][$type][] = $filter[$type]['condition'];
+
+            $prevType = $type;
+        }
+
+        $conditions = [];
+        foreach ($filters as $filter) {
+            if ('or' == key($filter)) {
+                $filter = $this->orToIn($filter);
+            }
+            $conditions[] = $filter;
+        }
+
+        return $conditions;
+    }
+
+    /**
+     * @param array $expression
+     * @return string
+     */
+    private function clearBaseExpr(array $expression) : string
+    {
+        if ($expression['expr_type'] == 'const') {
+            return trim($expression['base_expr'], '\'');
+        }
+
+        return $expression['base_expr'];
+    }
+
+    /**
+     * Build in into or
+     * @param $filter
+     * @return array
+     */
+    private function orToIn($filter) : array
+    {
+        $or = $filter['or'];
+        $in = [];
+        foreach ($or as $item) {
+                $in[$item[0]['base_expr']][] = $item;
+        }
+
+        if (count($or) == count($in)) {
+            return $filter;
+        }
+
+        $conditions = [];
+        foreach ($in as $key => $value) {
+            if (count($value) > 1) {
+                foreach ($value as $item) {
+                    $sign = ($item[1]['base_expr'] == '=') ? 'in' : $item[1]['base_expr'];
+                    $conditions[$key][$sign][] = $item[2]['base_expr'];
+                }
+            } else {
+                $item = $value[0];
+                $sign = $item[1]['base_expr'];
+                $conditions[$key][$sign][] = $item[2]['base_expr'];
+            }
+        }
+
+        if (count($conditions) > 1) {
+            $filter['or'] = $conditions;
+        } else {
+            $filter = $conditions;
+        }
+
+        return $filter;
+    }
+
+    /**
+     * Cast type of value
+     * @param $value
+     * @return float|int|mixed
+     */
+    private function cast($value)
+    {
+        $int = (int)$value;
+        if ((string)$int === $value) {
+            return $int;
+        }
+
+        $double = (double)$value;
+        if ((string)$double === $value) {
+            return $double;
+        }
+
+        return $value;
+    }
+
 }
