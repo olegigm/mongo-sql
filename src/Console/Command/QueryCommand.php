@@ -78,22 +78,28 @@ EOT
 
     private function tableRender(OutputInterface $output, array $data)
     {
-        $output->writeln('Table :');
         $rows = [];
-
         $data = json_decode(json_encode($data), true);
-
         $headers = array_keys($data[0]);
-        $output->writeln('Headers :');
-        var_dump($headers);
 
         foreach ($data as $key => $row) {
             foreach ($headers as $column) {
                 if (array_key_exists($column, $row)) {
-                    $rows[$key][] = (is_array($row[$column])) ? json_encode($row[$column]) : $row[$column];
+                    if ($column == '_id') {
+                        $rows[$key][] = $row[$column]['$oid'];
+                    } else {
+                        $rows[$key][] = (is_array($row[$column])) ? json_encode($row[$column]) : $row[$column];
+                    }
                 } else {
                     $rows[$key][] = '';
                 }
+            }
+        }
+
+        foreach ($headers as $key => $header) {
+            if ($header == '_id') {
+                $headers[$key] = 'id';
+                break;
             }
         }
 
