@@ -115,8 +115,9 @@ class SelectProcessor extends AbstractProcessor
     {
         $filters = []; $i = 0;
         foreach ($where as $key => $expression) {
-            if ($expression['expr_type'] == 'operator' && in_array($expression['base_expr'], ['and', 'or'])) {
-                $filters[$i]['type'] = $expression['base_expr'];
+            $exprType = mb_strtolower($expression['base_expr']);
+            if ($expression['expr_type'] == 'operator' && in_array($exprType, ['and', 'or'])) {
+                $filters[$i]['type'] = $exprType;
                 $i++;
                 continue;
             }
@@ -127,8 +128,8 @@ class SelectProcessor extends AbstractProcessor
             ];
         }
 
-        $filters = $this->filterPrepare($filters);
-        $filters = $this->filterBuild($filters);
+        $filters = $this->prepareFilter($filters);
+        $filters = $this->buildFilter($filters);
 
         $this->filter = $filters;
     }
@@ -167,7 +168,7 @@ class SelectProcessor extends AbstractProcessor
      * @param array $filters
      * @return array
      */
-    private function filterBuild(array $filters) : array
+    private function buildFilter(array $filters) : array
     {
         $conditions = [];
         $filter = $filters[0];
@@ -176,50 +177,15 @@ class SelectProcessor extends AbstractProcessor
         $type = $this->operators[$typeKey];
         $items = [];
         if ($typeKey == 'and') {
-            foreach ($filter[$typeKey] as $item) {
-                $left = $item[0]['base_expr'];
-                $signKey = $item[1]['base_expr'];
-                $sign = $this->operators[$signKey];
-                $right = $this->cast($item[2]['base_expr']);
-                if (empty($sign)) {
-                    $item = [$left => $right];
-                } else {
-                    $item = [$left => [$sign => $right]];
-                }
-                $items = $items + $item;
-            }
-
-            $conditions[$type][] = $items;
-
+            $items = $this->buildAndFilter($filter, $typeKey);
         } elseif ($typeKey == 'or') {
-            foreach ($filter[$typeKey] as $key => $item) {
-                $left = $key;
-                $signKey = key($item);
-                $sign = $this->operators[$signKey];
-                $right = $this->cast($item[$signKey]);
-                if ($signKey == 'in') {
-                    $item = [$left => [$sign => $right]];
-                } else {
-                    if (is_array($right) && count($right) == 1) {
-                        $right = $right[0];
-                    }
-
-                    if (empty($sign)) {
-                        $item = [$left => $right];
-                    } else {
-                        $item = [$left => [$sign => $right]];
-                    }
-                }
-
-                $items[] = $item;
-            }
-
-            $conditions[$type] = $items;
+            $items = $this->buildOrFilter($filter, $typeKey);
         }
+        $conditions[$type] = $items;
 
         array_shift($filters);
         if (!empty($filters)) {
-            $conditions[$type][] = $this->filterBuild($filters);
+            $conditions[$type][] = $this->buildFilter($filters);
         }
 
         return $conditions;
@@ -230,36 +196,16 @@ class SelectProcessor extends AbstractProcessor
      * @param $filters
      * @return array
      */
-    private function filterPrepare($filters)
+    private function prepareFilter($filters)
     {
-        $conditions = [];
-        $prevFilter = null;
-
-        foreach ($filters as $filter) {
-            if (!isset($filter['type'])) {
-                $conditions[] = [$prevFilter['type'] => $filter];
-            } else {
-                $conditions[] = [$filter['type'] => $filter];
-            }
-            $prevFilter = $filter;
-        }
-
-        $filters = [];
-        $prevFilter = null;
-        $key = -1;
-        foreach ($conditions as $filter) {
-            $type = key($filter);
-            if (!isset($prevType) || $prevType != $type) {
-                $key++;
-            }
-
-            $filters[$key][$type][] = $filter[$type]['condition'];
-
-            $prevType = $type;
-        }
+        $filters = $this->typingFilter($filters);
+        $filters = $this->compactFilter($filters);
 
         $conditions = [];
         foreach ($filters as $filter) {
+            if ('and' == key($filter)) {
+                $filter = $this->gtLt($filter);
+            }
             if ('or' == key($filter)) {
                 $filter = $this->orToIn($filter);
             }
@@ -323,6 +269,34 @@ class SelectProcessor extends AbstractProcessor
     }
 
     /**
+     * Prepare gt & lt filter
+     * @param array $filter
+     * @return array
+     */
+    private function gtLt(array $filter) : array
+    {
+        $and = $filter['and'];
+        $gtLt = [];
+
+        foreach ($and as $item) {
+            $gtLt[$item[0]['base_expr']][] = $item;
+        }
+
+        $conditions = [];
+        foreach ($gtLt as $key => $value) {
+            foreach ($value as $element) {
+                $item = $element;
+                $sign = $item[1]['base_expr'];
+                $conditions[$key][$sign][] = $item[2]['base_expr'];
+            }
+        }
+
+        $filter['and'] = $conditions;
+
+        return $filter;
+    }
+
+    /**
      * Cast type of value
      * @param $value
      * @return float|int|mixed
@@ -340,6 +314,139 @@ class SelectProcessor extends AbstractProcessor
         }
 
         return $value;
+    }
+
+    /**
+     * @param $value array|mixed
+     * @return array|mixed
+     */
+    private function takeValue($value)
+    {
+        if (is_array($value) && count($value) == 1 && array_key_exists(0, $value)) {
+            $value = $value[0];
+        }
+
+        return $value;
+    }
+
+    /**
+     * @param array $filter
+     * @param $typeKey
+     * @return array
+     */
+    private function buildAndFilter(array $filter, $typeKey) : array
+    {
+        $items = [];
+
+        foreach ($filter[$typeKey] as $key => $item) {
+            $left = $key;
+            $itemValues = [];
+            foreach ($item as $operatorKey => $value) {
+                $operator = $this->operators[$operatorKey];
+                $value = $this->takeValue($value);
+                $value = $this->cast($value);
+                if (empty($operator)) {
+                    $itemValues[] = $value;
+                } else {
+                    $itemValues[$operator] = $value;
+                }
+            }
+
+            $itemValues = $this->takeValue($itemValues);
+
+            if (empty($sign)) {
+                $item = [$left => $itemValues];
+            } else {
+                $item = [$left => [$sign => $itemValues]];
+            }
+
+            $items[] = $item;
+        }
+
+        return $items;
+    }
+
+    /**
+     * @param array $filter
+     * @param $typeKey
+     * @return array
+     */
+    private function buildOrFilter(array $filter, $typeKey) : array
+    {
+        $items = [];
+
+        foreach ($filter[$typeKey] as $key => $item) {
+            $left = $key;
+            $signKey = key($item);
+            $sign = $this->operators[$signKey];
+            $right = $this->cast($item[$signKey]);
+            if ($signKey == 'in') {
+                $item = [$left => [$sign => $right]];
+            } else {
+                if (is_array($right) && count($right) == 1) {
+                    $right = $right[0];
+                }
+
+                if (empty($sign)) {
+                    $item = [$left => $right];
+                } else {
+                    $item = [$left => [$sign => $right]];
+                }
+            }
+
+            $items[] = $item;
+        }
+
+        return $this->takeValue($items);
+    }
+
+    /**
+     * Set types to all filters
+     * @param array $filters
+     * @return array
+     */
+    private function typingFilter(array $filters) : array
+    {
+        $defaultFilterType = 'and';
+        $conditions = [];
+        $prevFilter = [];
+
+        foreach ($filters as $filter) {
+            if (isset($filter['type'])) {
+                $conditions[] = [$filter['type'] => $filter];
+            } else {
+                if (isset($prevFilter['type'])) {
+                    $conditions[] = [$prevFilter['type'] => $filter];
+                } else {
+                    $conditions[] = [$defaultFilterType => $filter];
+                }
+            }
+            $prevFilter = $filter;
+        }
+
+        return $conditions;
+    }
+
+    /**
+     * @param array $filters
+     * @return array
+     */
+    private function compactFilter(array $filters) : array
+    {
+        $conditions = [];
+        $key = -1;
+        foreach ($filters as $filter) {
+            $type = key($filter);
+            if (!isset($prevType) || $prevType != $type) {
+                $key++;
+            }
+
+            $conditions[$key][$type][] = $filter[$type]['condition'];
+
+            $prevType = $type;
+        }
+
+        return $conditions;
     }
 
 }
