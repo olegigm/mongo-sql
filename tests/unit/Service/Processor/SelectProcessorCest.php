@@ -28,16 +28,46 @@ class SelectProcessorCest
     }
 
     // tests
-    public function analyzeFilterTest(UnitTester $I)
+    public function filterPrepareTest(UnitTester $I)
     {
-        $I->wantToTest('filter analyzer');
+        $I->wantToTest('filter prepare');
 
-        $filters = $this->getFiltersFilterPrepare();
-        $checkFilters = $this->getCheckFiltersFilterPrepare();
+        $filters = $this->getFiltersPrepareFilter();
+        $checkFilters = $this->getCheckFiltersPrepareFilter();
 
-        $analyzeFilter = $this->getMethod('filterPrepare');
+        $prepareFilter = $this->getMethod('prepareFilter');
         $selectProcessor = new SelectProcessor(new Client(), $I->getConfig('database_name'));
-        $result = $analyzeFilter->invokeArgs($selectProcessor, [$filters]);
+        $result = $prepareFilter->invokeArgs($selectProcessor, [$filters]);
+
+        $I->assertEquals($checkFilters, $result);
+    }
+
+    // tests
+    public function buildAndFilterTest(UnitTester $I)
+    {
+        $I->wantToTest('building And filter');
+
+        $filters = $this->getFiltersBuildAndFilter();
+        $checkFilters = $this->getCheckFiltersBuildAndFilter();
+
+        $prepareFilter = $this->getMethod('buildAndFilter');
+        $selectProcessor = new SelectProcessor(new Client(), $I->getConfig('database_name'));
+        $result = $prepareFilter->invokeArgs($selectProcessor, [$filters, 'and']);
+
+        $I->assertEquals($checkFilters, $result);
+    }
+
+    // tests
+    public function gtLtFilterPrepareTest(UnitTester $I)
+    {
+        $I->wantToTest('filter prepare for gt & lt');
+
+        $filters = $this->getFiltersGtLtPrepareFilter();
+        $checkFilters = $this->getCheckFiltersGtLtPrepareFilter();
+
+        $prepareFilter = $this->getMethod('prepareFilter');
+        $selectProcessor = new SelectProcessor(new Client(), $I->getConfig('database_name'));
+        $result = $prepareFilter->invokeArgs($selectProcessor, [$filters]);
 
         $I->assertEquals($checkFilters, $result);
     }
@@ -47,17 +77,32 @@ class SelectProcessorCest
     {
         $I->wantToTest('filter builder');
 
-        $filters = $this->getCheckFiltersFilterPrepare();
-        $checkFilters = $this->getCheckFiltersFilterBuild();
+        $filters = $this->getCheckFiltersPrepareFilter();
+        $checkFilters = $this->getCheckFiltersBuildFilter();
 
-        $analyzeFilter = $this->getMethod('filterBuild');
+        $buildFilter = $this->getMethod('buildFilter');
         $selectProcessor = new SelectProcessor(new Client(), $I->getConfig('database_name'));
-        $result = $analyzeFilter->invokeArgs($selectProcessor, [$filters]);
+        $result = $buildFilter->invokeArgs($selectProcessor, [$filters]);
 
         $I->assertEquals($checkFilters, $result);
     }
 
-    private function getFiltersFilterPrepare()
+    // test
+    public function gtLtFilterBuildTest(UnitTester $I)
+    {
+        $I->wantToTest('filter builder for gt & lt');
+
+        $filters = $this->getCheckFiltersGtLtPrepareFilter();
+        $checkFilters = $this->getCheckFiltersGtLtBuildFilter();
+
+        $buildFilter = $this->getMethod('buildFilter');
+        $selectProcessor = new SelectProcessor(new Client(), $I->getConfig('database_name'));
+        $result = $buildFilter->invokeArgs($selectProcessor, [$filters]);
+
+        $I->assertEquals($checkFilters, $result);
+    }
+
+    private function getFiltersPrepareFilter()
     {
         return [
             [
@@ -94,23 +139,12 @@ class SelectProcessorCest
         ];
     }
 
-    private function getCheckFiltersFilterPrepare()
+    private function getCheckFiltersPrepareFilter()
     {
         return [
             ['and' => [
-                [
-                    [
-                        'expr_type' => 'colref',
-                        'base_expr' => 'position',
-                    ],
-                    [
-                        'expr_type' => 'operator',
-                        'base_expr' => '<',
-                    ],
-                    [
-                        'expr_type' => 'const',
-                        'base_expr' => '5',
-                    ],
+                'position' => [
+                    '<' => ['5'],
                 ],
             ]],
             ['or' => [
@@ -129,7 +163,7 @@ class SelectProcessorCest
         ];
     }
 
-    private function getCheckFiltersFilterBuild()
+    private function getCheckFiltersBuildFilter()
     {
         return ['$and' => [
             ['position' => ['$lt' => 5]],
@@ -141,5 +175,84 @@ class SelectProcessorCest
                 ['title' => 'The Regional Office Is Under Attack!'],
             ]],
         ]];
+    }
+
+    private function getFiltersGtLtPrepareFilter()
+    {
+        return [
+            [
+                'condition' => [
+                    ['expr_type' => 'colref', 'base_expr' => 'position'],
+                    ['expr_type' => 'operator', 'base_expr' => '>'],
+                    ['expr_type' => 'const', 'base_expr' => '1'],
+                ],
+                'type' => 'and',
+            ],
+            [
+                'condition' => [
+                    ['expr_type' => 'colref', 'base_expr' => 'position'],
+                    ['expr_type' => 'operator', 'base_expr' => '<'],
+                    ['expr_type' => 'const', 'base_expr' => '5'],
+                ],
+                'type' => 'and',
+            ],
+            [
+                'condition' => [
+                    ['expr_type' => 'colref', 'base_expr' => 'author'],
+                    ['expr_type' => 'operator', 'base_expr' => '='],
+                    ['expr_type' => 'const', 'base_expr' => 'Brit Bennett'],
+                ],
+            ],
+        ];
+    }
+
+    private function getCheckFiltersGtLtPrepareFilter()
+    {
+        return [
+            ['and' => [
+                'position' => [
+                    '>' => ['1'],
+                    '<' => ['5'],
+                ],
+                'author' => [
+                    '=' => ['Brit Bennett'],
+                ],
+            ]],
+        ];
+    }
+
+    private function getCheckFiltersGtLtBuildFilter()
+    {
+        return ['$and' => [
+            ['position' => [
+                '$gt' => 1,
+                '$lt' => 5,
+            ]],
+            ['author' => 'Brit Bennett'],
+        ]];
+    }
+
+    private function getFiltersBuildAndFilter()
+    {
+        return ['and' => [
+            'position' => [
+                '>' => ['1'],
+                '<' => ['5'],
+            ],
+            'author' => [
+                '=' => ['Brit Bennett'],
+            ],
+        ]];
+    }
+
+    private function getCheckFiltersBuildAndFilter()
+    {
+        return [
+            ['position' => [
+                '$gt' => 1,
+                '$lt' => 5,
+            ]],
+            ['author' => 'Brit Bennett'],
+        ];
     }
 }
